@@ -89,27 +89,53 @@ def getHHInfo():
 
                 if(len(vacancy) == 0):
                     vacancy = vacancyBlock.find_elements_by_css_selector("div.vacancy-serp-item")
+                j = int(0)
 
-                for vac in vacancy:
+                for j in range(len(vacancy)):
+
+                    tools = list()
 
                     try:
                         try:
-                            city = vac.find_element_by_css_selector("span.vacancy-serp-item__meta-info").text
+                            city = vacancy[j].find_element_by_css_selector("span.vacancy-serp-item__meta-info").text
                         except:
                             statistics["passed"] += 1
                             continue
                         try:
-                            salary =vac.find_element_by_css_selector("div.vacancy-serp-item__compensation").text
+                            salary =vacancy[j].find_element_by_css_selector("div.vacancy-serp-item__compensation").text
                         except:
                             salary = 0
 
                         try:
-                            language = vac.find_element_by_css_selector("div.resume-search-item__name").text
+                            language = vacancy[j].find_element_by_css_selector("div.resume-search-item__name").text
                         except:
                             language = "UNKNOWN"
 
-                        information.append({"city":str(city),"language":str(language), "salary":str(salary)})
+                        try:
+                            a=vacancy[j].find_element_by_css_selector("div.resume-search-item__name").find_element_by_tag_name("a")
+                            href = a.get_attribute("href")
+                            driver.get(href)
+
+                            #proccess
+
+                            skills = driver.find_elements_by_css_selector("span.Bloko-TagList-Text")
+
+                            for skill in skills:
+                                tools.append(skill.text)
+
+                            driver.back()
+                            vacancyBlock = driver.find_element_by_class_name("sticky-container")
+                            vacancy = vacancyBlock.find_elements_by_css_selector('div.vacancy-serp-item.vacancy-serp-item_premium')
+
+                            if(len(vacancy) == 0):
+                                vacancy = vacancyBlock.find_elements_by_css_selector("div.vacancy-serp-item")
+                        except:
+                            tools = list()
+
+
+                        information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools})
                         statistics["successful"] += 1
+
                     except:
                         statistics["passed"] += 1
                         continue
