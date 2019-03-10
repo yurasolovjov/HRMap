@@ -17,6 +17,7 @@ from folium.plugins import HeatMap
 
 def getHHInfo():
 
+    statistics = {"passed":int(0),"successful":int(0),"pages":int(0), "regions":int(0)}
     ignoreList = ["Россия"]
 
     def getListFromRegions(engine = None):
@@ -70,20 +71,8 @@ def getHHInfo():
     time.sleep(2)
 
     defaultPage(driver)
-    # getListFromRegions(driver).click()
-    # link = getListFromRegions(driver).find_elements_by_tag_name("a")[0]
-    # link.click()
-
     getMoreRegion(driver).click()
     regions = getFullRegions(driver).find_elements_by_tag_name("a")
-
-    # search_box = driver.find_element_by_class_name("sticky-container")
-    # listRegion = search_box.find_element_by_class_name('clusters-group__items')
-    # listRegion.find_element_by_class_name("clusters-list__item_more").click()
-    # listRegion = search_box.find_element_by_class_name('clusters-group__items')
-    # regions = listRegion
-
-    counterRegion = int(0)
 
     for i in range(len(regions)):
 
@@ -92,24 +81,64 @@ def getHHInfo():
                 continue
 
             regions[i].click()
+
             # Proccess
+            while True:
+                vacancyBlock = driver.find_element_by_class_name("sticky-container")
+                vacancy = vacancyBlock.find_elements_by_css_selector('div.vacancy-serp-item.vacancy-serp-item_premium')
+
+                if(len(vacancy) == 0):
+                    vacancy = vacancyBlock.find_elements_by_css_selector("div.vacancy-serp-item")
+
+                for vac in vacancy:
+
+                    try:
+                        try:
+                            city = vac.find_element_by_css_selector("span.vacancy-serp-item__meta-info").text
+                        except:
+                            statistics["passed"] += 1
+                            continue
+                        try:
+                            salary =vac.find_element_by_css_selector("div.vacancy-serp-item__compensation").text
+                        except:
+                            salary = 0
+
+                        try:
+                            language = vac.find_element_by_css_selector("div.resume-search-item__name").text
+                        except:
+                            language = "UNKNOWN"
+
+                        information.append({"city":str(city),"language":str(language), "salary":str(salary)})
+                        statistics["successful"] += 1
+                    except:
+                        statistics["passed"] += 1
+                        continue
+
+                try:
+                    buttonContinue = vacancyBlock.find_element_by_css_selector("a.bloko-button.HH-Pager-Controls-Next.HH-Pager-Control")
+                    link = buttonContinue.get_attribute("href")
+                    driver.get(link)
+                    statistics["pages"] += 1
+                except:
+                    break
+
             defaultPage(driver)
             getMoreRegion(driver).click()
             regions = getFullRegions(driver).find_elements_by_tag_name("a")
-            print("")
+            statistics["regions"] += 1
+
+            print("Passed: " + str(statistics["passed"]), " Successful: "+str(statistics["successful"]), " Pages: " + str(statistics["pages"]), " Regions:" + str(statistics["regions"]))
+
         except:
             continue
+
+        with open("hh.pickle","wb") as f:
+            pickle.dump(information,f)
+
+        with open("stat.pickle","wb") as f2:
+            pickle.dump(statistics,f2)
+
     pass
-    # search_box.click()
-    # search_box.send_keys("программист")
-    # time.sleep(2)
-    # # search_box.send_keys(Keys.ENTER)
-    # sform = driver.find_element_by_class_name("search__form")
-    # sform.click()
-    # sform.send_keys(Keys.ENTER)
-    # input_bar = driver.find_element_by_class_name('button__text').find_element_by_tag_name()
-    # input_bar.click()
-    # input_bar.send_keys(Keys.ENTER)
 
 def getYandexWorkInfo():
 
