@@ -120,6 +120,7 @@ def getHHInfo():
                     driver.get(link)
                     statistics["pages"] += 1
                 except:
+                    print("Debug print = Break. Becouse except")
                     break
 
             defaultPage(driver)
@@ -130,13 +131,14 @@ def getHHInfo():
             print("Passed: " + str(statistics["passed"]), " Successful: "+str(statistics["successful"]), " Pages: " + str(statistics["pages"]), " Regions:" + str(statistics["regions"]))
 
         except:
+            print("Continue. Except")
             continue
 
-        with open("hh.pickle","wb") as f:
-            pickle.dump(information,f)
+    with open("hh.pickle","wb") as f:
+        pickle.dump(information,f)
 
-        with open("stat.pickle","wb") as f2:
-            pickle.dump(statistics,f2)
+    with open("stat.pickle","wb") as f2:
+        pickle.dump(statistics,f2)
 
     pass
 
@@ -241,13 +243,13 @@ def pushtoMap(information):
 def main():
 
     a = getHHInfo()
-    if(not os.path.exists("base.pickle")):
-        loadData = getYandexWorkInfo()
-    else:
-        with open('base.pickle', "rb") as f:
-            loadData = pickle.load(f)
-
-    pushtoMap(loadData)
+    # if(not os.path.exists("base.pickle")):
+    #     loadData = getYandexWorkInfo()
+    # else:
+    #     with open('base.pickle', "rb") as f:
+    #         loadData = pickle.load(f)
+    #
+    # pushtoMap(loadData)
     pass
 
 
