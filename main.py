@@ -10,6 +10,8 @@ from selenium.webdriver.support import expected_conditions as EC
 import pickle
 import os
 from geopy.geocoders import Nominatim
+from geopy.geocoders import Yandex
+
 import folium
 from folium.plugins import MarkerCluster
 from folium.plugins import HeatMap
@@ -19,6 +21,20 @@ from glob2 import glob
 
 ATTEMPT_UPDATE = int(5)
 TIMESLEEP = int(1)
+GLOBAL_SLEEP = int(180)
+
+def getLocation(city):
+
+    try:
+        geolocator = Yandex();
+
+        gcode = geolocator.geocode(city)
+        latitude  = gcode.latitude
+        longitude = gcode.longitude
+
+        return latitude, longitude
+    except:
+        return float(0),float(0)
 
 def getHHInfo(args):
 
@@ -112,13 +128,31 @@ def getHHInfo(args):
 
         return regions
 
+    def globalUpdateRegion(engine=None,k=0):
+        if engine == None:
+            raise Exception("I can`t find engine")
+
+        try:
+            return updateRegion(engine)
+        except:
+            attempt = int(1) + k
+            timesleep = GLOBAL_SLEEP
+
+            if(attempt < 10):
+                logging.warning("I can`t switch to next region. Sleep: {} sec".format(str(timesleep)))
+                time.sleep(GLOBAL_SLEEP)
+                engine.refresh()
+                return globalUpdateRegion(engine,attempt)
+            else:
+                logging.error("I can`t switch to next region. Global error ")
+                raise Exception("I can`t switch to next region. Global error ")
+
+        pass
 
     options = webdriver.ChromeOptions()
     options.add_argument('headless')
 
     driver = webdriver.Chrome(options=None)
-
-    information = list()
 
     regions = updateRegion(driver)
 
@@ -132,7 +166,6 @@ def getHHInfo(args):
 
         logging.info(inf)
 
-        chunkInformation = list()
         catalogRegion = os.path.join(outputCatalog,str(i))
 
         if( not os.path.exists(catalogRegion)):
@@ -145,7 +178,7 @@ def getHHInfo(args):
             regions[i].click()
 
             #Update vacancy list
-            def updateVacancy(engine, k = 0):
+            def updateVacancy(engine,k = 0):
 
                 try:
                     vacancyBlock = engine.find_element_by_class_name("sticky-container")
@@ -156,7 +189,7 @@ def getHHInfo(args):
                 except:
                     time.sleep(TIMESLEEP)
                     experience = k + 1
-                    if experience < 5:
+                    if experience < 10:
                         return updateVacancy(engine, experience)
                     else:
                         logging.error("I can`t update vacancy list")
@@ -176,7 +209,7 @@ def getHHInfo(args):
                 except:
                     time.sleep(TIMESLEEP)
                     experience = k + 1
-                    if experience < 3:
+                    if experience < 10:
                         logging.info("I can`t switch to next page. Attempt: " + str(experience))
                         return nextPage(engine,experience)
                     else:
@@ -184,41 +217,16 @@ def getHHInfo(args):
                         raise Exception("I can`t switch to next page")
 
 
-            def clickVacancy(engine, k=0):
-
-                if engine == None:
-                    raise Exception("I can`t find engine")
-                try:
-                    a=vacancy[j].find_element_by_css_selector("div.resume-search-item__name").find_element_by_tag_name("a")
-                    href = a.get_attribute("href")
-                    driver.get(href)
-
-                    #proccess
-                    skills = driver.find_elements_by_css_selector("span.Bloko-TagList-Text")
-
-                    for skill in skills:
-                        tools.append(skill.text)
-
-                    driver.back()
-                except:
-                    updateVacancy(driver)
-                    tools.append("empty")
-                    errText = "I can`t get info about skills. Page: "+str(page) + " vacancy: "+str(j)
-                    logging.error(errText)
-                    raise Exception(errText)
-
-
-
-
             page = int(1)
 
             # Proccess
             try:
+                findVacancy = int(0)
                 while True:
 
                     try:
                         vacancy = updateVacancy(driver)
-                        time.sleep(TIMESLEEP)
+                        # time.sleep(TIMESLEEP)
                     except:
                         logging.error("I can`t update this page #"+ str(page))
 
@@ -238,8 +246,8 @@ def getHHInfo(args):
                                 city = vacancy[j].find_element_by_css_selector("span.vacancy-serp-item__meta-info").text
                             except:
                                 statistics["passed"] += 1
-                                city = "Region_"+str(i)
-                                print("Passed: "+ str(city))
+                                city = None
+
 
                             try:
                                 salary =vacancy[j].find_element_by_css_selector("div.vacancy-serp-item__compensation").text
@@ -283,10 +291,15 @@ def getHHInfo(args):
 
 
 
-                            information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools})
-                            chunkInformation.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools})
-                            pageInformation.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools})
-                            statistics["successful"] += 1
+                            try:
+                                latitude, longitude = getLocation(str(city))
+                            except:
+                                latitude, longitude = 0,0
+
+                            if city != None:
+                                pageInformation.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools, "latitude":latitude,"longitude":longitude})
+                                statistics["successful"] += 1
+                                findVacancy += 1
 
                         except:
                             logging.debug("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
@@ -305,28 +318,33 @@ def getHHInfo(args):
 
                         with open(os.path.join(catalogRegion,pageName),"wb") as f:
                             pickle.dump(pageInformation,f)
+                            logging.info(str("Write information in pickle file. Find: {} vacancy".format(str(findVacancy))))
 
                         page += 1
+
                     except:
                         logging.error("I can`t switch to next page")
                         break
             except:
                 logging.error("I can`t process this page")
 
-
             try:
-                regions = updateRegion(driver)
+                regions = globalUpdateRegion(driver)
                 statistics["regions"] += 1
             except:
-                logging.error("I can`t switch to next region")
-
-                driver.refresh()
-                regions=updateRegion(driver)
+                raise Exception("Global exception !!! I can`t work")
+            # try:
+            #     regions = updateRegion(driver)
+            #     statistics["regions"] += 1
+            # except:
+            #     logging.error("I can`t switch to next region")
+            #     time.sleep(GLOBAL_SLEEP)
+            #     driver.refresh()
+            #     regions=updateRegion(driver)
 
         except:
-            logging.error("EXCEPT ! I switch to next region")
+            logging.error("EXCEPT ! I can`t switch to next region")
             continue
-
 
 
     try:
@@ -415,9 +433,40 @@ def getYandexWorkInfo():
 
 
 
+# def getLocation(information):
+#     locations = list()
+#
+#     geolocator = Yandex();
+#
+#     for place in information:
+#         try:
+#             print("City: "+ str(place['city']))
+#             gcode = geolocator.geocode(place["city"])
+#             latitude  = gcode.latitude
+#             longitude = gcode.longitude
+#
+#
+#             locations.append({"city":place["city"],
+#                               "language":place["language"],
+#                               "salary":place["salary"],
+#                               "tools":place["tools"],
+#                               "latitude":latitude,
+#                               "longitude":longitude})
+#         except:
+#             print("Error: "+ str(place['city']))
+#             continue
+#
+#
+#     with open("locationshh.pickle","wb") as f:
+#
+#         pickle.dump(locations,f)
+#
+#
+#     pass
 def pushtoMap(information):
 
-    geolocator = Nominatim()
+    # geolocator = Nominatim()
+    geolocator = Yandex();
 
     centralgcode = geolocator.geocode('Москва')
     latitude = centralgcode.latitude
@@ -448,16 +497,28 @@ def main():
     parser = argparse.ArgumentParser(description="Options");
     # parser.add_argument("-s", "--search", help="Keyword for search", action="append", default=None, nargs="*")
     parser.add_argument("-o", "--out", help="Output catalog", default="vacancy")
-    parser.add_argument("-l", "--lim_page", help="Limit of page", default=20)
+    parser.add_argument("-p", "--lim_page", help="Limit of page", default=20)
+    parser.add_argument("-l", "--load", help="Load serialize data", default=None)
 
     args = parser.parse_args()
 
-    getHHInfo(args)
-    # if(not os.path.exists("base.pickle")):
-        # loadData = getYandexWorkInfo()
-    # else:
-    #
-    # pushtoMap(loadData)
+
+    if (args.load != None and type(args.load) == str):
+
+        with open(args.load, "rb") as f:
+            loadData = pickle.load(f)
+
+            if(len(loadData) > 0):
+                try:
+                    getLocation(information=loadData)
+                    # pushtoMap(loadData)
+                except:
+                    raise Exception("I can`t show location of vacancy")
+
+
+    else:
+        getHHInfo(args)
+
     pass
 
 
