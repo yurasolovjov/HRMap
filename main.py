@@ -18,15 +18,17 @@ from folium.plugins import HeatMap
 import logging
 import argparse
 from glob2 import glob
+import datetime
 
 ATTEMPT_UPDATE = int(5)
 TIMESLEEP = int(1)
-GLOBAL_SLEEP = int(180)
+GLOBAL_SLEEP = int(360)
 
 def getLocation(city):
 
     try:
-        geolocator = Yandex();
+        # geolocator = Yandex();
+        geolocator = Nominatim();
 
         gcode = geolocator.geocode(city)
         latitude  = gcode.latitude
@@ -40,11 +42,18 @@ def getHHInfo(args):
 
     outputCatalog = args.out
 
+    postfix = str(datetime.datetime.now().time()).split(":")[0:2]
+    postfix = "_"+"_".join(postfix)
+
     if(not os.path.exists(outputCatalog)):
         os.makedirs(outputCatalog)
+    else:
+        os.rename(outputCatalog,outputCatalog+postfix)
+        os.makedirs(outputCatalog)
 
-
-    logging.basicConfig(filename="HH.log",level=logging.INFO,filemode="w")
+    fileLogging = "HH" + postfix + ".log"
+    fileLogging = os.path.join(outputCatalog,fileLogging)
+    logging.basicConfig(filename=fileLogging,level=logging.INFO,filemode="w")
 
     statistics = {"passed":int(0),"successful":int(0),"pages":int(0), "regions":int(0)}
     ignoreList = ["Россия"]
@@ -56,7 +65,6 @@ def getHHInfo(args):
         url ="https://spb.hh.ru/vacancies/programmist"
         engine.get(url)
         time.sleep(TIMESLEEP)
-
 
     def getListFromRegions(engine = None):
 
@@ -117,7 +125,7 @@ def getHHInfo(args):
             regions = getFullRegions(engine).find_elements_by_tag_name("a")
         except:
             attempt = k + 1
-            time.sleep(TIMESLEEP)
+            time.sleep(TIMESLEEP * 10)
             logging.warning("I can`t update regions. Attempt: #"+str(attempt))
 
             if ( attempt < ATTEMPT_UPDATE):
@@ -133,15 +141,17 @@ def getHHInfo(args):
             raise Exception("I can`t find engine")
 
         try:
+            logging.info("I try update region !")
             return updateRegion(engine)
         except:
-            attempt = int(1) + k
-            timesleep = GLOBAL_SLEEP
+            logging.warning("I can`t update region !")
+            attempt = k + 1
 
-            if(attempt < 10):
-                logging.warning("I can`t switch to next region. Sleep: {} sec".format(str(timesleep)))
+            if(attempt < ATTEMPT_UPDATE):
+                logging.warning("I can`t switch to next region. Sleep: {} sec".format(str(GLOBAL_SLEEP)))
                 time.sleep(GLOBAL_SLEEP)
                 engine.refresh()
+                logging.warning("Refresh page.")
                 return globalUpdateRegion(engine,attempt)
             else:
                 logging.error("I can`t switch to next region. Global error ")
@@ -183,9 +193,7 @@ def getHHInfo(args):
                 try:
                     vacancyBlock = engine.find_element_by_class_name("sticky-container")
                     vacancy = vacancyBlock.find_elements_by_css_selector('div.vacancy-serp-item.vacancy-serp-item_premium')
-
-                    if(len(vacancy) == 0):
-                        vacancy = vacancyBlock.find_elements_by_css_selector("div.vacancy-serp-item")
+                    vacancy += vacancyBlock.find_elements_by_css_selector("div.vacancy-serp-item")
                 except:
                     time.sleep(TIMESLEEP)
                     experience = k + 1
@@ -207,15 +215,43 @@ def getHHInfo(args):
                     link = buttonContinue.get_attribute("href")
                     driver.get(link)
                 except:
-                    time.sleep(TIMESLEEP)
-                    experience = k + 1
-                    if experience < 10:
-                        logging.info("I can`t switch to next page. Attempt: " + str(experience))
-                        return nextPage(engine,experience)
-                    else:
-                        logging.info("I can`t switch to next page")
-                        raise Exception("I can`t switch to next page")
 
+                    try:
+                        current_page = driver.find_elements_by_css_selector("span.bloko-button.bloko-button_pressed").text
+                        current_page = int(current_page)
+                    except:
+                        current_page = None
+
+                    try:
+                        controls = driver.find_elements_by_css_selector("a.bloko-button.HH-Pager-Control")
+
+                        if(str(controls[-1].text).find('дальше') >= 0):
+                            max_page = int(controls[-2].text)
+                        else:
+                            max_page = int(controls[-1].text)
+                    except:
+                        max_page = None
+
+
+                    logging.warning("Next page --> Current page: {} max page: {}".format(str(current_page),str(max_page)))
+
+                    if((current_page < max_page) and max_page != None and current_page != None):
+
+                        logging.warning("Update page. Caller nextPage()")
+                        time.sleep(GLOBAL_SLEEP)
+                        engine.refresh()
+
+                        experience = k + 1
+
+                        if experience < ATTEMPT_UPDATE:
+                            logging.info("I can`t switch to next page. Attempt:{}. Current page:{} Max page: {} ".format(str(experience),str(current_page),str(max_page)))
+                            return nextPage(engine,experience)
+                        else:
+                            logging.error("I can`t switch to next page. Count of attempt bigger {}.  Current page: {} Max page: {}.".format(str(ATTEMPT_UPDATE),str(current_page),str(max_page)))
+                            raise Exception("I can`t switch to next page")
+                    else:
+                        logging.error("I can`t switch to next page.  Current page: {} Max page: {}.".format(str(current_page),str(max_page)))
+                        raise Exception("I can`t switch to next page")
 
             page = int(1)
 
@@ -226,7 +262,8 @@ def getHHInfo(args):
 
                     try:
                         vacancy = updateVacancy(driver)
-                        # time.sleep(TIMESLEEP)
+
+
                     except:
                         logging.error("I can`t update this page #"+ str(page))
 
@@ -284,7 +321,7 @@ def getHHInfo(args):
                                         logging.debug("Current url is not valid. Driver.back()")
                                         driver.back()
 
-                                updateVacancy(driver)
+                                vacancy = updateVacancy(driver)
                                 tools.append("empty")
                                 errText = "I can`t get info about skills. Page: "+str(page) + " vacancy: "+str(j)
                                 logging.error(errText)
@@ -302,7 +339,7 @@ def getHHInfo(args):
                                 findVacancy += 1
 
                         except:
-                            logging.debug("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
+                            logging.warning("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
                             statistics["passed"] += 1
                             continue
 
@@ -313,17 +350,14 @@ def getHHInfo(args):
 
                         pageName =str("page")+str(statistics["pages"])+str(".pickle")
 
-                        if(os.path.exists(os.path.join(catalogRegion,pageName))):
-                            pageName =str("page")+str(statistics["pages"])+str("dubl")+str(".pickle")
-
                         with open(os.path.join(catalogRegion,pageName),"wb") as f:
                             pickle.dump(pageInformation,f)
-                            logging.info(str("Write information in pickle file. Find: {} vacancy".format(str(findVacancy))))
+                            logging.info(str("Write information in pickle file. Region: {}. Page: {} . Find: {} vacancy.".format(str(i),str(page),str(findVacancy))))
 
                         page += 1
 
                     except:
-                        logging.error("I can`t switch to next page")
+                        logging.error("I can`t switch to next page. Processed page: {}. Region: {}".format(str(page),str(i)))
                         break
             except:
                 logging.error("I can`t process this page")
@@ -332,18 +366,14 @@ def getHHInfo(args):
                 regions = globalUpdateRegion(driver)
                 statistics["regions"] += 1
             except:
+                logging.error("Global exception ! I can`t work")
                 raise Exception("Global exception !!! I can`t work")
-            # try:
-            #     regions = updateRegion(driver)
-            #     statistics["regions"] += 1
-            # except:
-            #     logging.error("I can`t switch to next region")
-            #     time.sleep(GLOBAL_SLEEP)
-            #     driver.refresh()
-            #     regions=updateRegion(driver)
 
         except:
             logging.error("EXCEPT ! I can`t switch to next region")
+            time.sleep(GLOBAL_SLEEP * 2)
+            regions = globalUpdateRegion(driver)
+            statistics["regions"] += 1
             continue
 
 
