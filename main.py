@@ -20,6 +20,8 @@ import argparse
 from glob2 import glob
 import datetime
 
+from headHunterScraper import HeadHunterScraper
+
 ATTEMPT_UPDATE = int(5)
 TIMESLEEP = int(1)
 GLOBAL_SLEEP = int(360)
@@ -27,8 +29,8 @@ GLOBAL_SLEEP = int(360)
 def getLocation(city):
 
     try:
-        # geolocator = Yandex();
-        geolocator = Nominatim();
+        geolocator = Yandex();
+        # geolocator = Nominatim();
 
         gcode = geolocator.geocode(city)
         latitude  = gcode.latitude
@@ -176,6 +178,7 @@ def getHHInfo(args):
 
         logging.info(inf)
 
+
         catalogRegion = os.path.join(outputCatalog,str(i))
 
         if( not os.path.exists(catalogRegion)):
@@ -186,6 +189,8 @@ def getHHInfo(args):
                 continue
 
             regions[i].click()
+
+
 
             #Update vacancy list
             def updateVacancy(engine,k = 0):
@@ -209,6 +214,7 @@ def getHHInfo(args):
 
                 if engine == None:
                     raise Exception("I can`t find engine")
+
                 try:
                     buttonContinue = engine.find_element_by_class_name("sticky-container"). \
                         find_element_by_css_selector("a.bloko-button.HH-Pager-Controls-Next.HH-Pager-Control")
@@ -252,8 +258,10 @@ def getHHInfo(args):
                     else:
                         logging.error("I can`t switch to next page.  Current page: {} Max page: {}.".format(str(current_page),str(max_page)))
                         raise Exception("I can`t switch to next page")
+                pass
 
             page = int(1)
+
 
             # Proccess
             try:
@@ -532,22 +540,26 @@ def main():
 
     args = parser.parse_args()
 
+    hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=False)
 
-    if (args.load != None and type(args.load) == str):
-
-        with open(args.load, "rb") as f:
-            loadData = pickle.load(f)
-
-            if(len(loadData) > 0):
-                try:
-                    getLocation(information=loadData)
-                    # pushtoMap(loadData)
-                except:
-                    raise Exception("I can`t show location of vacancy")
+    hh.getVacancy()
 
 
-    else:
-        getHHInfo(args)
+    # if (args.load != None and type(args.load) == str):
+    #
+    #     with open(args.load, "rb") as f:
+    #         loadData = pickle.load(f)
+    #
+    #         if(len(loadData) > 0):
+    #             try:
+    #                 getLocation(information=loadData)
+    #                 # pushtoMap(loadData)
+    #             except:
+    #                 raise Exception("I can`t show location of vacancy")
+    #
+    #
+    # else:
+    #     getHHInfo(args)
 
     pass
 
