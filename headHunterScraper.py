@@ -1,11 +1,15 @@
 import bs4 as bs
 import pandas as pd
 import time
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
+import subprocess
 import pickle
 import os
 from geopy.geocoders import Nominatim
@@ -22,14 +26,14 @@ import threading
 
 
 class HeadHunterScraper(object):
-    def __init__(self, outputCatalog = None, use_proxy=True, debug=True):
+    def __init__(self, outputCatalog = None, use_proxy=True, debug=False):
 
-        self.TIMESLEEP = 5 #sec
+        self.TIMESLEEP = 1 #sec
         self.ATTEMPT_UPDATE = 5 # count
         self.urlList = ["https://spb.hh.ru/vacancies/programmist"]
-        self.proxy_list = ["217.79.3.94:8080","83.171.96.249:8080","78.107.254.213:8080"];
         self.ignoreList = ["Россия"]
         self.url = self.urlList[0]
+        self.engine = None
 
         self.statistics = {"passed":int(0),"successful":int(0),"pages":int(0), "regions":int(0)}
         self.regions = list()
@@ -53,22 +57,70 @@ class HeadHunterScraper(object):
 
         self.createLoger()
 
-        options = webdriver.ChromeOptions()
-        if (not debug):
-            options.add_argument('headless')
+        self.proxy = None
 
-        if(use_proxy):
-            self.proxy = self.proxy_list[0];
-            options.add_argument('--proxy-server=http://%s' % self.proxy)
-        else:
-            self.proxy = None
+        self.makeEngine()
 
-        self.engine = webdriver.Chrome(options=options)
+        self.logger.info("Start HeadHunter module !!!")
+        pass
 
-        self.logger.info("Start HeadHunterScraper module")
-        self.resetPage()
+    def removeEngine(self):
+        self.engine.quit()
+        pass
+
+    def makeEngine(self,use_proxy =True):
+
+        try:
+            if(self.engine != None):
+                self.removeEngine()
+
+            self.options = webdriver.ChromeOptions()
+            # self.options.add_argument('-headless')
+
+
+            # if(use_proxy):
+                # self.proxy = self.upadteProxy()
+                # self.options.add_argument('--proxy-server=http://%s' % self.proxy)
+
+            self.engine = webdriver.Chrome(options=self.options)
+
+            self.logger.info("Make engine")
+            self.resetPage()
+
+        except:
+            time.sleep(10)
+            self.makeEngine()
 
         pass
+
+    def upadteProxy(self):
+
+        try:
+            page = requests.get("https://www.sslproxies.org/")
+            soup = bs.BeautifulSoup(page.content,"html.parser")
+
+            sslProxyTable = soup.find('tbody')
+
+
+            for row in sslProxyTable.findAll("tr"):
+
+                addressInfo = row.findAll("td")
+
+                if(str(addressInfo[4]).find("anonymous") == -1):
+                    continue
+                proxy = addressInfo[0].text +":"+addressInfo[1].text
+
+                def checkIp(ip):
+                    response = subprocess.run(["ping","-n","1",ip]).returncode
+                    return  True if response == 0 else False;
+
+                if(checkIp(addressInfo[0])):
+                    break
+
+        except:
+            proxy = self.upadteProxy()
+
+        return proxy
 
     def resetPage(self):
         if self.engine == None:
@@ -171,6 +223,7 @@ class HeadHunterScraper(object):
         except:
             attempt = k + 1
             time.sleep(self.TIMESLEEP * 10)
+
             logging.warning("I can`t update regions. Attempt: #"+str(attempt))
 
             if ( attempt < self.ATTEMPT_UPDATE):
@@ -346,7 +399,9 @@ class HeadHunterScraper(object):
 
         self.regions = self.updateRegion()
 
-        for i in range(len(self.regions)):
+        for i in range(20,len(self.regions)):
+
+            # self.makeEngine()
 
             catalogRegion = os.path.join(self.outputCatalog,str(i))
             self.last_region = i
@@ -393,7 +448,6 @@ class HeadHunterScraper(object):
                                 self.information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools, "latitude":latitude,"longitude":longitude})
                                 self.statistics["successful"] += 1
                                 findVacancy += 1
-
 
                         except:
                             self.logger.warning("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))

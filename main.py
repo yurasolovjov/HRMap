@@ -190,8 +190,6 @@ def getHHInfo(args):
 
             regions[i].click()
 
-
-
             #Update vacancy list
             def updateVacancy(engine,k = 0):
 
@@ -540,7 +538,8 @@ def main():
 
     args = parser.parse_args()
 
-    hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=False)
+    hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=True)
+    # hh = HeadHunterScraper(outputCatalog=args.out)
 
     hh.getVacancy()
 
