@@ -77,12 +77,19 @@ class HeadHunterScraper(object):
             self.options = webdriver.ChromeOptions()
             # self.options.add_argument('-headless')
 
-
             # if(use_proxy):
                 # self.proxy = self.upadteProxy()
                 # self.options.add_argument('--proxy-server=http://%s' % self.proxy)
 
             self.engine = webdriver.Chrome(options=self.options)
+
+            # # options = webdriver.FirefoxOptions()
+            # # options.headless = True
+            #
+            # binary = FirefoxBinary(r"C:\tools\tor\Tor Browser\Browser\firefox.exe")
+            # profile = FirefoxProfile(r"C:\tools\tor\Tor Browser\Browser\TorBrowser\Data\Browser\profile.default")
+            #
+            # self.engine = webdriver.Firefox(firefox_binary=binary,firefox_profile=profile)
 
             self.logger.info("Make engine")
             self.resetPage()
@@ -118,7 +125,7 @@ class HeadHunterScraper(object):
                     break
 
         except:
-            proxy = self.upadteProxy()
+            proxy = self.upadtePll = roxy()
 
         return proxy
 
@@ -258,8 +265,12 @@ class HeadHunterScraper(object):
         if self.engine == None:
             raise Exception("I can`t find engine")
 
-        return self.engine.find_element_by_class_name("sticky-container"). \
-            find_element_by_class_name('clusters-group__items')
+        return self.engine.find_element_by_css_selector("div.sticky-container")\
+                   .find_element_by_css_selector('div.clusters')\
+                   .find_elements_by_css_selector("div.clusters-group.clusters-group_expand")[0]
+
+        # return self.engine.find_element_by_class_name("sticky-container"). \
+        #     find_element_by_class_name('clusters-group__items')
         pass
 
     # def checkIgnore(self):
@@ -332,6 +343,39 @@ class HeadHunterScraper(object):
                 return True
         return  False
 
+    def checkMetro(self):
+
+        try:
+            metrocss = self.engine.find_element_by_css_selector("div.sticky-container") \
+                    .find_element_by_css_selector('div.clusters') \
+                    .find_elements_by_css_selector("div.clusters-group.clusters-group_expand")[2]
+
+
+            metro = metrocss.find_element_by_css_selector("div.clusters-group-title.clusters-group-title_selectable").text
+
+            if str(metro).find("Метро") != -1 :
+                result = True
+            else:
+                result =False
+        except:
+            result = False
+
+        return result
+
+    def getListMetroStations(self):
+
+        try:
+
+            metrocss = self.engine.find_element_by_css_selector("div.sticky-container") \
+                .find_element_by_css_selector('div.clusters') \
+                .find_elements_by_css_selector("div.clusters-group.clusters-group_expand")[2]
+
+            result = metrocss.find_elements_by_css_selector("a.clusters-value")
+        except:
+            result = None
+
+        return result
+
     def getCity(self, vacancy):
 
         try:
@@ -394,12 +438,65 @@ class HeadHunterScraper(object):
 
         return latitude, longitude
 
+    def sraping(self):
+
+        # Proccess
+        try:
+            findVacancy = int(0)
+            while True:
+
+                try:
+                    vacancy = self.updateVacancy()
+                except:
+                    self.logger.error("I can`t update this page #"+ str(self.page))
+
+                self.information = list()
+
+                for j in range(len(vacancy)):
+
+                    tools = list()
+
+                    try:
+                        vacancy = self.updateVacancy()
+                    except:
+                        logging.error("I can`t update this page #"+ str(self.page))
+
+                    try:
+                        city = self.getCity(vacancy[j])
+                        salary = self.getSalary(vacancy[j])
+                        tools = self.getTools(vacancy[j])
+                        language = self.getLanguage(vacancy[j])
+                        latitude,longitude = self.getLocation(city=city)
+
+                        if city != None:
+                            self.information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools, "latitude":latitude,"longitude":longitude})
+                            self.statistics["successful"] += 1
+                            findVacancy += 1
+
+                    except:
+                        self.logger.warning("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
+                        self.statistics["passed"] += 1
+                        continue
+
+                try:
+
+                    self.statistics["pages"] += 1
+                    pageName =str("page")+str(self.statistics["pages"])+str(".pickle")
+                    self.save(name=pageName)
+                    self.page += 1
+                    self.nextPage()
+                except:
+                    logging.error("I can`t switch to next page. Find vacancy:{} Processed page: {}. Region: {}".format(str(findVacancy),str(self.page),str(self.last_region)))
+                    break
+        except:
+            logging.error("I can`t process this page")
+        pass
 
     def getVacancy(self):
 
         self.regions = self.updateRegion()
 
-        for i in range(20,len(self.regions)):
+        for i in range(len(self.regions)):
 
             # self.makeEngine()
 
@@ -416,56 +513,73 @@ class HeadHunterScraper(object):
 
             self.page = 1
 
-            # Proccess
-            try:
-                findVacancy = int(0)
-                while True:
+            if self.checkMetro():
 
-                    try:
-                        vacancy = self.updateVacancy()
-                    except:
-                        self.logger.error("I can`t update this page #"+ str(self.page))
+                stations = self.getListMetroStations()
 
-                    self.information = list()
+                for istation in range(len(stations)):
+                    stations[istation].click()
+                    time.sleep(2)
+                    self.sraping()
+                    stations = self.getListMetroStations()
+                    stations[0].click()
+                    stations = self.getListMetroStations()
+            else:
 
-                    for j in range(len(vacancy)):
+                # Proccess
+                self.sraping()
+            # self.sraping()
 
-                        tools = list()
-
-                        try:
-                            vacancy = self.updateVacancy()
-                        except:
-                            logging.error("I can`t update this page #"+ str(self.page))
-
-                        try:
-                            city = self.getCity(vacancy[j])
-                            salary = self.getSalary(vacancy[j])
-                            tools = self.getTools(vacancy[j])
-                            language = self.getLanguage(vacancy[j])
-                            latitude,longitude = self.getLocation(city=city)
-
-                            if city != None:
-                                self.information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools, "latitude":latitude,"longitude":longitude})
-                                self.statistics["successful"] += 1
-                                findVacancy += 1
-
-                        except:
-                            self.logger.warning("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
-                            self.statistics["passed"] += 1
-                            continue
-
-                    try:
-
-                        self.statistics["pages"] += 1
-                        pageName =str("page")+str(self.statistics["pages"])+str(".pickle")
-                        self.save(name=pageName)
-                        self.page += 1
-                        self.nextPage()
-                    except:
-                        logging.error("I can`t switch to next page. Find vacancy:{} Processed page: {}. Region: {}".format(str(findVacancy),str(self.page),str(self.last_region)))
-                        break
-            except:
-                logging.error("I can`t process this page")
+            # # Proccess
+            # try:
+            #     findVacancy = int(0)
+            #     while True:
+            #
+            #         try:
+            #             vacancy = self.updateVacancy()
+            #         except:
+            #             self.logger.error("I can`t update this page #"+ str(self.page))
+            #
+            #         self.information = list()
+            #
+            #         for j in range(len(vacancy)):
+            #
+            #             tools = list()
+            #
+            #             try:
+            #                 vacancy = self.updateVacancy()
+            #             except:
+            #                 logging.error("I can`t update this page #"+ str(self.page))
+            #
+            #             try:
+            #                 city = self.getCity(vacancy[j])
+            #                 salary = self.getSalary(vacancy[j])
+            #                 tools = self.getTools(vacancy[j])
+            #                 language = self.getLanguage(vacancy[j])
+            #                 latitude,longitude = self.getLocation(city=city)
+            #
+            #                 if city != None:
+            #                     self.information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools, "latitude":latitude,"longitude":longitude})
+            #                     self.statistics["successful"] += 1
+            #                     findVacancy += 1
+            #
+            #             except:
+            #                 self.logger.warning("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
+            #                 self.statistics["passed"] += 1
+            #                 continue
+            #
+            #         try:
+            #
+            #             self.statistics["pages"] += 1
+            #             pageName =str("page")+str(self.statistics["pages"])+str(".pickle")
+            #             self.save(name=pageName)
+            #             self.page += 1
+            #             self.nextPage()
+            #         except:
+            #             logging.error("I can`t switch to next page. Find vacancy:{} Processed page: {}. Region: {}".format(str(findVacancy),str(self.page),str(self.last_region)))
+            #             break
+            # except:
+            #     logging.error("I can`t process this page")
 
             try:
                 self.globalUpdateRegion()

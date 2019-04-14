@@ -537,6 +537,25 @@ def main():
     parser.add_argument("-l", "--load", help="Load serialize data", default=None)
 
     args = parser.parse_args()
+    # import subprocess
+    # subprocess.call(r"C:\tools\tor\Tor Browser\Browser\firefox.exe")
+    # time.sleep(5)
+
+    # pc = glob(os.path.join(args.out,"**","*.pickle"),recursive=True)
+    #
+    # ll = list()
+    # for pic in pc :
+    #
+    #     with open(pic,"rb") as f:
+    #
+    #         ll += pickle.load(f)
+    #
+    #
+    # with open(os.path.join(args.out,"hh.pickle"),"wb") as f:
+    #     pickle.dump(ll,f)
+
+    # with open(os.path.join(args.out,"hh.pickle"),"rb") as f:
+    #     ll = pickle.load(f)
 
     hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=True)
     # hh = HeadHunterScraper(outputCatalog=args.out)
