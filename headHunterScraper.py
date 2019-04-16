@@ -26,7 +26,7 @@ import threading
 
 
 class HeadHunterScraper(object):
-    def __init__(self, outputCatalog = None, use_proxy=True, debug=False):
+    def __init__(self, outputCatalog = None, use_proxy=True, headless = False, debug=False):
 
         self.TIMESLEEP = 1 #sec
         self.ATTEMPT_UPDATE = 5 # count
@@ -46,36 +46,38 @@ class HeadHunterScraper(object):
 
         self.outputCatalog = outputCatalog
 
-        postfix = str(datetime.datetime.now().time()).split(":")[0:2]
-        postfix = "_"+"_".join(postfix)
+        # postfix = str(datetime.datetime.now().time()).split(":")[0:2]
+        # postfix = "_"+"_".join(postfix)
 
         if(not os.path.exists(self.outputCatalog)):
             os.makedirs(self.outputCatalog)
-        else:
-            os.rename(self.outputCatalog,self.outputCatalog+postfix)
-            os.makedirs(self.outputCatalog)
+        # else:
+        #     os.rename(self.outputCatalog,self.outputCatalog+postfix)
+        #     os.makedirs(self.outputCatalog)
 
         self.createLoger()
 
         self.proxy = None
 
-        self.makeEngine()
+        self.makeEngine(headless=headless)
 
-        self.logger.info("Start HeadHunter module !!!")
+        self.logger.info("Start  HeadHunter module !!!")
         pass
 
     def removeEngine(self):
         self.engine.quit()
         pass
 
-    def makeEngine(self,use_proxy =True):
+    def makeEngine(self,headless=False,use_proxy =True):
 
         try:
             if(self.engine != None):
                 self.removeEngine()
 
             self.options = webdriver.ChromeOptions()
-            # self.options.add_argument('-headless')
+
+            if headless:
+                self.options.add_argument('--headless')
 
             # if(use_proxy):
                 # self.proxy = self.upadteProxy()
@@ -181,24 +183,24 @@ class HeadHunterScraper(object):
             except:
                 max_page = None
 
-            logging.warning("Next page --> Current page: {} max page: {}".format(str(current_page),str(max_page)))
+            self.logger.warning("Next page --> Current page: {} max page: {}".format(str(current_page),str(max_page)))
 
             if((current_page < max_page) and max_page != None and current_page != None):
 
-                logging.warning("Update page. Caller nextPage()")
+                self.logger.warning("Update page. Caller nextPage()")
                 time.sleep(self.TIMESLEEP)
                 self.engine.refresh()
 
                 experience = k + 1
 
                 if experience < self.ATTEMPT_UPDATE:
-                    logging.info("I can`t switch to next page. Attempt:{}. Current page:{} Max page: {} ".format(str(experience),str(current_page),str(max_page)))
+                    self.logger.info("I can`t switch to next page. Attempt:{}. Current page:{} Max page: {} ".format(str(experience),str(current_page),str(max_page)))
                     return self.nextPage(experience)
                 else:
-                    logging.error("I can`t switch to next page. Count of attempt bigger {}.  Current page: {} Max page: {}.".format(str(self.ATTEMPT_UPDATE),str(current_page),str(max_page)))
+                    self.logger.error("I can`t switch to next page. Count of attempt bigger {}.  Current page: {} Max page: {}.".format(str(self.ATTEMPT_UPDATE),str(current_page),str(max_page)))
                     raise Exception("I can`t switch to next page")
             else:
-                logging.error("I can`t switch to next page.  Current page: {} Max page: {}.".format(str(current_page),str(max_page)))
+                self.logger.error("I can`t switch to next page.  Current page: {} Max page: {}.".format(str(current_page),str(max_page)))
                 raise Exception("I can`t switch to next page")
         pass
 
@@ -213,7 +215,7 @@ class HeadHunterScraper(object):
             if experience < 10:
                 return self.updateVacancy(experience)
             else:
-                logging.error("I can`t update vacancy list")
+                self.logger.error("I can`t update vacancy list")
                 raise Exception("I can`t update vacancy list")
         return vacancy
 
@@ -231,12 +233,12 @@ class HeadHunterScraper(object):
             attempt = k + 1
             time.sleep(self.TIMESLEEP * 10)
 
-            logging.warning("I can`t update regions. Attempt: #"+str(attempt))
+            self.logger.warning("I can`t update regions. Attempt: #"+str(attempt))
 
             if ( attempt < self.ATTEMPT_UPDATE):
                 return self.updateRegion(attempt)
             else:
-                logging.error("I can`t update regions. Break")
+                self.logger.error("I can`t update regions. Break")
                 raise Exception("I can`t update regions. Break")
 
         return self.regions
@@ -287,20 +289,20 @@ class HeadHunterScraper(object):
             raise Exception("I can`t find engine")
 
         try:
-            logging.info("I try update region !")
+            self.logger.info("I try update region !")
             return self.updateRegion()
         except:
-            logging.warning("I can`t update region !")
+            self.logger.warning("I can`t update region !")
             attempt = k + 1
 
             if(attempt < self.ATTEMPT_UPDATE):
-                logging.warning("I can`t switch to next region. Sleep: {} sec".format(str(self.TIMESLEEP)))
+                self.logger.warning("I can`t switch to next region. Sleep: {} sec".format(str(self.TIMESLEEP)))
                 time.sleep(self.TIMESLEEP)
                 self.engine.refresh()
-                logging.warning("Refresh page.")
+                self.logger.warning("Refresh page.")
                 return self.globalUpdateRegion(attempt)
             else:
-                logging.error("I can`t switch to next region. Global error ")
+                self.logger.error("I can`t switch to next region. Global error ")
                 raise Exception("I can`t switch to next region. Global error ")
         pass
 
@@ -459,7 +461,7 @@ class HeadHunterScraper(object):
                     try:
                         vacancy = self.updateVacancy()
                     except:
-                        logging.error("I can`t update this page #"+ str(self.page))
+                        self.logger.error("I can`t update this page #"+ str(self.page))
 
                     try:
                         city = self.getCity(vacancy[j])
@@ -481,105 +483,62 @@ class HeadHunterScraper(object):
                 try:
 
                     self.statistics["pages"] += 1
-                    pageName =str("page")+str(self.statistics["pages"])+str(".pickle")
+                    pageName =str("page_")+str(self.page)+str(".pickle")
                     self.save(name=pageName)
                     self.page += 1
                     self.nextPage()
                 except:
-                    logging.error("I can`t switch to next page. Find vacancy:{} Processed page: {}. Region: {}".format(str(findVacancy),str(self.page),str(self.last_region)))
+                    self.logger.error("I can`t switch to next page. Find vacancy:{} Processed page: {}. Region: {}".format(str(findVacancy),str(self.page),str(self.last_region)))
                     break
         except:
-            logging.error("I can`t process this page")
+            self.logger.error("I can`t process this page")
         pass
 
-    def getVacancy(self):
+    def process(self, start=0):
 
         self.regions = self.updateRegion()
 
-        for i in range(len(self.regions)):
+        for i in range(start,len(self.regions)):
 
-            # self.makeEngine()
+            nameRegion = self.regions[i].text
 
-            catalogRegion = os.path.join(self.outputCatalog,str(i))
-            self.last_region = i
+            catalogRegion = os.path.join(self.outputCatalog,nameRegion)
+            self.last_region = nameRegion
 
             if( not os.path.exists(catalogRegion)):
                 os.makedirs(catalogRegion)
 
-            if(self.checkIgnore(self.regions[i].text)):
+            if(self.checkIgnore(nameRegion)):
                 continue
 
             self.regions[i].click()
 
             self.page = 1
 
-            if self.checkMetro():
+            try:
+                if self.checkMetro():
 
-                stations = self.getListMetroStations()
+                    stations = self.getListMetroStations()
 
-                for istation in range(len(stations)):
-                    stations[istation].click()
-                    time.sleep(2)
+                    if(stations == None):
+                        self.logger.error("I can`t find metro")
+                        raise Exception("I can`t find metro")
+
+                    for istation in range(len(stations)):
+                        stations[istation].click()
+                        self.sraping()
+                        stations = self.getListMetroStations()
+                        stations[0].click()
+                        stations = self.getListMetroStations()
+
+                        if(stations == None):
+                            self.logger.error("I can`t find metro")
+                            raise Exception("I can`t find metro")
+                else:
+                    # Proccess
                     self.sraping()
-                    stations = self.getListMetroStations()
-                    stations[0].click()
-                    stations = self.getListMetroStations()
-            else:
-
-                # Proccess
-                self.sraping()
-            # self.sraping()
-
-            # # Proccess
-            # try:
-            #     findVacancy = int(0)
-            #     while True:
-            #
-            #         try:
-            #             vacancy = self.updateVacancy()
-            #         except:
-            #             self.logger.error("I can`t update this page #"+ str(self.page))
-            #
-            #         self.information = list()
-            #
-            #         for j in range(len(vacancy)):
-            #
-            #             tools = list()
-            #
-            #             try:
-            #                 vacancy = self.updateVacancy()
-            #             except:
-            #                 logging.error("I can`t update this page #"+ str(self.page))
-            #
-            #             try:
-            #                 city = self.getCity(vacancy[j])
-            #                 salary = self.getSalary(vacancy[j])
-            #                 tools = self.getTools(vacancy[j])
-            #                 language = self.getLanguage(vacancy[j])
-            #                 latitude,longitude = self.getLocation(city=city)
-            #
-            #                 if city != None:
-            #                     self.information.append({"city":str(city),"language":str(language), "salary":str(salary), "tools":tools, "latitude":latitude,"longitude":longitude})
-            #                     self.statistics["successful"] += 1
-            #                     findVacancy += 1
-            #
-            #             except:
-            #                 self.logger.warning("passed: " + str(city)+" " + str(language) + " " + str(salary)+" "+str(tools))
-            #                 self.statistics["passed"] += 1
-            #                 continue
-            #
-            #         try:
-            #
-            #             self.statistics["pages"] += 1
-            #             pageName =str("page")+str(self.statistics["pages"])+str(".pickle")
-            #             self.save(name=pageName)
-            #             self.page += 1
-            #             self.nextPage()
-            #         except:
-            #             logging.error("I can`t switch to next page. Find vacancy:{} Processed page: {}. Region: {}".format(str(findVacancy),str(self.page),str(self.last_region)))
-            #             break
-            # except:
-            #     logging.error("I can`t process this page")
+            except:
+                self.logger.error("I can`t process region")
 
             try:
                 self.globalUpdateRegion()
@@ -587,5 +546,36 @@ class HeadHunterScraper(object):
             except:
                 self.logger.error("Global exception ! I can`t work in this region")
                 continue
+        pass
+
+    def append(self):
+
+        catalogs = glob(os.path.join(self.outputCatalog,"**","*"),recursive=True)
+
+        catalogs = [ str(os.path.split(x)[-1]).split(" ")[0] for x in catalogs if os.path.isdir(x)]
+        regions = [str(region.text).split(" ")[0] for region in self.updateRegion()]
+
+        self.ignoreList = list(set(catalogs).intersection(set(regions)))
+
+        self.process()
+
+        pass
+
+
+
+    def dump(self):
+
+        file = os.path.join(self.outputCatalog,"hh.pickle")
+
+        dumpFiles = glob(os.path.join(self.outputCatalog,"**","*.pickle"))
+
+        allVacancys = list()
+
+        for line in dumpFiles:
+            with open(line,"rb") as f:
+                allVacancys += pickle.load(f)
+
+        with open(file,"wb") as f:
+            pickle.dump(allVacancys,f)
 
         pass
