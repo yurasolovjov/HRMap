@@ -127,7 +127,8 @@ class HeadHunterScraper(object):
                     break
 
         except:
-            proxy = self.upadtePll = roxy()
+            return proxy
+            # proxy = self.upadtePll = proxy()
 
         return proxy
 
@@ -341,7 +342,7 @@ class HeadHunterScraper(object):
     def checkIgnore(self,region):
 
         for ignore in self.ignoreList:
-            if region == ignore:
+            if str(region).find(ignore) >= 0:
                 return True
         return  False
 
@@ -440,7 +441,7 @@ class HeadHunterScraper(object):
 
         return latitude, longitude
 
-    def sraping(self):
+    def scraping(self):
 
         # Proccess
         try:
@@ -505,11 +506,12 @@ class HeadHunterScraper(object):
             catalogRegion = os.path.join(self.outputCatalog,nameRegion)
             self.last_region = nameRegion
 
+            if(self.checkIgnore(nameRegion)):
+                continue
+
             if( not os.path.exists(catalogRegion)):
                 os.makedirs(catalogRegion)
 
-            if(self.checkIgnore(nameRegion)):
-                continue
 
             self.regions[i].click()
 
@@ -526,7 +528,7 @@ class HeadHunterScraper(object):
 
                     for istation in range(len(stations)):
                         stations[istation].click()
-                        self.sraping()
+                        self.scraping()
                         stations = self.getListMetroStations()
                         stations[0].click()
                         stations = self.getListMetroStations()
@@ -536,7 +538,7 @@ class HeadHunterScraper(object):
                             raise Exception("I can`t find metro")
                 else:
                     # Proccess
-                    self.sraping()
+                    self.scraping()
             except:
                 self.logger.error("I can`t process region")
 
@@ -552,10 +554,11 @@ class HeadHunterScraper(object):
 
         catalogs = glob(os.path.join(self.outputCatalog,"**","*"),recursive=True)
 
-        catalogs = [ str(os.path.split(x)[-1]).split(" ")[0] for x in catalogs if os.path.isdir(x)]
-        regions = [str(region.text).split(" ")[0] for region in self.updateRegion()]
+        catalogs = [ str(os.path.split(x)[-1]).split(" ")[0] for x in catalogs if os.path.isdir(x) ]
+        regions = [ str(region.text).split(" ")[0] for region in self.updateRegion() ]
 
-        self.ignoreList = list(set(catalogs).intersection(set(regions)))
+        self.ignoreList += list(set(catalogs).intersection(set(regions)))
+        self.ignoreList = sorted(self.ignoreList)
 
         self.process()
 

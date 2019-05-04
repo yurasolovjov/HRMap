@@ -19,6 +19,7 @@ import logging
 import argparse
 from glob2 import glob
 import datetime
+import pandas as pd
 
 from headHunterScraper import HeadHunterScraper
 
@@ -411,63 +412,6 @@ def getHHInfo(args):
 
     pass
 
-def getYandexWorkInfo():
-
-    options = webdriver.ChromeOptions()
-    options.add_argument('headless')
-
-    driver = webdriver.Chrome(options=None)
-
-    information = list()
-
-    url ="https://rabota.yandex.ru/search?text=%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%81%D1%82&rid=225"
-    driver.get(url)
-    time.sleep(TIMESLEEP)
-
-
-    lim = 60
-
-    for i in range(1,100000):
-        time.sleep(4)
-        try:
-
-            if i > lim:
-                break
-
-            content_main =driver.find_element_by_class_name('content-left-main')
-            languages = content_main.find_elements_by_class_name('serp-vacancy__name')
-            salary = content_main.find_elements_by_class_name('serp-vacancy__salary')
-            citys_row = content_main.find_elements_by_class_name('serp-vacancy__contacts')
-            # time.sleep(4)
-
-            if (len(languages) != len(salary) or len(salary) != len(citys_row)):
-                break;
-
-            for city,lang,sal in zip(citys_row, languages, salary):
-                try:
-                    textcity = city.find_element_by_class_name('serp-vacancy__address').find_element_by_class_name('address').text
-                    information.append({"city":textcity,"language":lang.text, "salary":sal.text})
-                except:
-                    information.append({"city":str(None),"language":str(None), "salary":str(None)})
-
-            print("Query: "+ str(i))
-
-            next = driver.find_element_by_class_name('pager__links')
-            next.find_element_by_class_name('pager__link_next_yes').click()
-
-        except:
-            try:
-                driver.close()
-                break;
-            except:
-                break;
-
-    with open("yandex.pickle","wb") as f:
-        pickle.dump(information,f)
-
-    return information
-
-
 
 # def getLocation(information):
 #     locations = list()
@@ -499,32 +443,40 @@ def getYandexWorkInfo():
 #
 #
 #     pass
+
 def pushtoMap(information):
 
-    # geolocator = Nominatim()
-    geolocator = Yandex();
+    cmap=folium.Map(location=[information[0]["latitude"],information[0]["longitude"]],zoom_start=5)
 
-    centralgcode = geolocator.geocode('Москва')
-    latitude = centralgcode.latitude
-    longitude = centralgcode.longitude
-
-    cmap=folium.Map(location=[latitude,longitude],zoom_start=5)
-    marker = MarkerCluster().add_to(cmap);
-
-    for place in information:
+    for inf in information:
         try:
-            print("City: "+ str(place['city']))
-            gcode = geolocator.geocode(place["city"])
-            latitude  = gcode.latitude
-            longitude = gcode.longitude
+            latitude = inf["latitude"]
+            longitude = inf["longitude"]
 
+            marker = MarkerCluster().add_to(cmap);
             folium.Marker(location=[latitude, longitude],
                           icon=folium.Icon(color='blue', icon='info-sign')).add_to(marker)
+
         except:
-            print("Error: "+ str(place['city']))
             continue
 
     cmap.save('index.html')
+
+    # #
+    # # for place in information:
+    # #     try:
+    # #         print("City: "+ str(place['city']))
+    # #         gcode = geolocator.geocode(place["city"])
+    # #         latitude  = gcode.latitude
+    # #         longitude = gcode.longitude
+    # #
+    # #         folium.Marker(location=[latitude, longitude],
+    # #                       icon=folium.Icon(color='blue', icon='info-sign')).add_to(marker)
+    # #     except:
+    # #         print("Error: "+ str(place['city']))
+    # #         continue
+    #
+    # cmap.save('index.html')
 
     pass
 
@@ -535,49 +487,22 @@ def main():
     parser.add_argument("-o", "--out", help="Output catalog", default="vacancy")
     parser.add_argument("-p", "--lim_page", help="Limit of page", default=20)
     parser.add_argument("-l", "--load", help="Load serialize data", default=None)
+    parser.add_argument("--headless", help="Start with headless ", action="store_true")
+    parser.add_argument("--append", help="Append data in exist catalog ", action="store_true")
 
     args = parser.parse_args()
-    # import subprocess
-    # subprocess.call(r"C:\tools\tor\Tor Browser\Browser\firefox.exe")
-    # time.sleep(5)
-
-    # pc = glob(os.path.join(args.out,"**","*.pickle"),recursive=True)
-    #
-    # ll = list()
-    # for pic in pc :
-    #
-    #     with open(pic,"rb") as f:
-    #
-    #         ll += pickle.load(f)
-    #
-    #
-    # with open(os.path.join(args.out,"hh.pickle"),"wb") as f:
-    #     pickle.dump(ll,f)
-
-    # with open(os.path.join(args.out,"hh.pickle"),"rb") as f:
-    #     ll = pickle.load(f)
-
-    hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=True)
-    # hh = HeadHunterScraper(outputCatalog=args.out)
-
-    hh.getVacancy()
 
 
-    # if (args.load != None and type(args.load) == str):
-    #
-    #     with open(args.load, "rb") as f:
-    #         loadData = pickle.load(f)
-    #
-    #         if(len(loadData) > 0):
-    #             try:
-    #                 getLocation(information=loadData)
-    #                 # pushtoMap(loadData)
-    #             except:
-    #                 raise Exception("I can`t show location of vacancy")
-    #
-    #
-    # else:
-    #     getHHInfo(args)
+    hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=True,headless=args.headless)
+
+    try:
+        if not args.append :
+            hh.process()
+        else:
+            hh.append()
+
+    except:hh.append()
+    finally:hh.dump()
 
     pass
 
