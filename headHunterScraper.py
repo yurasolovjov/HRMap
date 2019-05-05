@@ -24,6 +24,58 @@ from glob2 import glob
 import datetime
 import threading
 
+class DataHunter(object):
+    def __init__(self, path):
+
+        if path is None:
+            raise Exception("Path to file is incorrect")
+
+
+        if os.path.isdir(path):
+            sfiles = glob(os.path.join(path,"**","*.pickle"),recursive=True)
+
+            data = list()
+
+            for sfile in sfiles:
+                with open(sfile,"rb") as f:
+                    data += pickle.load(f)
+
+        elif os.path.isfile(path):
+            sfile = path
+
+            with open(sfile,"rb") as f:
+                data = pickle.load(f)
+
+        else: raise Exception("File is not exist")
+
+        self.data = data
+        pass
+
+    def __str__(self):
+        keys = ""
+
+        if len(self.data) > 0:
+
+            for k,v in self.data[0].items():
+                keys += "{}, ".format(k)
+
+        return keys
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+    def getCity(self,item):
+        return self[item]["city"]
+    def getLanguage(self,item):
+        return self[item]["language"]
+    def getSalary(self,item):
+        return self[item]["tools"]
+    def getLatitude(self,item):
+        return self[item]["latitude"]
+    def getLongitude(self,item):
+        return self[item]["longitude"]
+
+
 
 class HeadHunterScraper(object):
     def __init__(self, outputCatalog = None, use_proxy=True, headless = False, debug=False):

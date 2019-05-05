@@ -21,7 +21,7 @@ from glob2 import glob
 import datetime
 import pandas as pd
 
-from headHunterScraper import HeadHunterScraper
+from headHunterScraper import HeadHunterScraper,DataHunter
 
 ATTEMPT_UPDATE = int(5)
 TIMESLEEP = int(1)
@@ -492,6 +492,10 @@ def main():
 
     args = parser.parse_args()
 
+
+    if not args.load is None:
+        data = DataHunter(path=args.load)
+        return True
 
     hh = HeadHunterScraper(outputCatalog=args.out,use_proxy=True,headless=args.headless)
 
